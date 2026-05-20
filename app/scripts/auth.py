@@ -48,8 +48,13 @@ def _require_credentials() -> None:
         raise RuntimeError(f"Missing creds in .env: {', '.join(missing)}")
 
 
-def login_and_cache_tokens() -> AuthTokens:
-    """Generate a fresh session via TOTP and persist tokens to disk."""
+def login_and_cache_tokens() -> tuple[Any, AuthTokens]:
+    """Generate a fresh session via TOTP and persist tokens to disk.
+
+    Returns the authenticated SmartConnect client alongside the tokens so the
+    caller can reuse the same session for subsequent REST calls (searchScrip
+    etc.) without re-authenticating.
+    """
     settings = get_settings()
     _require_credentials()
 
@@ -78,7 +83,7 @@ def login_and_cache_tokens() -> AuthTokens:
     )
     save_tokens(tokens)
     log.info("login_ok", client=tokens.client_code)
-    return tokens
+    return api, tokens
 
 
 def fetch_and_cache_universe_tokens(api: Any) -> dict[str, str]:
@@ -107,16 +112,7 @@ def _select_match(result: Any, symbol: str) -> dict[str, Any] | None:
 
 
 def main() -> None:
-    tokens = login_and_cache_tokens()
-    api = build_smart_connect()
-    # generateSession was called in login_and_cache_tokens above, but that built
-    # a separate SmartConnect; for searchScrip we need an authed client.
-    settings = get_settings()
-    api.generateSession(
-        settings.angelone_client_code,
-        settings.angelone_mpin,
-        pyotp.TOTP(settings.angelone_totp_secret).now(),
-    )
+    api, tokens = login_and_cache_tokens()
     mapping = fetch_and_cache_universe_tokens(api)
     log.info(
         "auth_done",
