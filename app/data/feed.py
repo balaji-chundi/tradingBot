@@ -132,10 +132,12 @@ class AngelFeed:
         except asyncio.QueueFull:
             log.warning("feed_queue_full_drop", symbol=tick.symbol)
 
-    def _on_error(self, wsapp: Any, error: Any) -> None:
+    def _on_error(self, wsapp: Any, error: Any, *_: Any) -> None:
         log.error("feed_ws_error", error=str(error))
 
-    def _on_close(self, wsapp: Any) -> None:
+    def _on_close(self, wsapp: Any, *_: Any) -> None:
+        # The SDK has historically invoked on_close with either 1 or 3 positional
+        # args depending on which underlying ws library is in use; accept any.
         log.info("feed_ws_close")
 
     def _to_tick(self, message: dict[str, Any]) -> Tick | None:

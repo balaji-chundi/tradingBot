@@ -24,9 +24,12 @@ from app.brokers.angelone import AuthTokens, build_smart_connect, save_tokens
 from app.config import get_settings
 from app.strategy.universe import (
     EXCHANGE_NSE_CM,
+    HARDCODED_NSE_TOKENS,
     NIFTY_5_UNIVERSE,
     save_token_map,
 )
+
+DORMANT_ERRORCODE = "AB2000"
 
 logging.basicConfig(level=logging.INFO, format="%(message)s", stream=sys.stdout)
 log = structlog.get_logger()
@@ -87,10 +90,29 @@ def login_and_cache_tokens() -> tuple[Any, AuthTokens]:
 
 
 def fetch_and_cache_universe_tokens(api: Any) -> dict[str, str]:
-    """For each universe symbol, look up the NSE symboltoken via searchScrip."""
+    """Look up NSE symboltokens for the universe via searchScrip.
+
+    Falls back to the verified [[hardcoded-nse-tokens]] map when Angel One
+    rejects searchScrip with AB2000 (demat dormant). The fallback is fine
+    because WebSocket V2 market data is unaffected by dormancy; only the
+    order-side endpoints (incl. searchScrip) are blocked.
+    """
     mapping: dict[str, str] = {}
     for symbol in NIFTY_5_UNIVERSE:
-        result = api.searchScrip(exchange="NSE", searchscrip=symbol)
+        try:
+            result = api.searchScrip(exchange="NSE", searchscrip=symbol)
+        except Exception as e:
+            log.warning("searchScrip_error_falling_back", symbol=symbol, error=str(e))
+            result = None
+        if isinstance(result, dict) and result.get("errorcode") == DORMANT_ERRORCODE:
+            log.warning(
+                "searchScrip_blocked_by_dormancy_falling_back",
+                symbol=symbol,
+                message=result.get("message"),
+            )
+            mapping = dict(HARDCODED_NSE_TOKENS)
+            save_token_map(mapping)
+            return mapping
         match = _select_match(result, symbol)
         if not match:
             raise RuntimeError(f"searchScrip returned no NSE EQ match for {symbol}: {result}")

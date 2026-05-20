@@ -15,6 +15,18 @@ NIFTY_5_UNIVERSE: list[str] = [
 
 EXCHANGE_NSE_CM = 1  # SmartWebSocketV2 exchangeType for NSE Cash Market
 
+# Stable NSE EQ symboltokens for the 5-symbol universe.
+# Used as a fallback when Angel One's searchScrip endpoint is blocked (e.g. by
+# the AB2000 "demat dormant" gate) — the WebSocket V2 market data feed itself
+# is NOT blocked by dormancy. Verified live on 2026-05-20.
+HARDCODED_NSE_TOKENS: dict[str, str] = {
+    "RELIANCE-EQ": "2885",
+    "HDFCBANK-EQ": "1333",
+    "ICICIBANK-EQ": "4963",
+    "INFY-EQ": "1594",
+    "TCS-EQ": "11536",
+}
+
 SYMBOL_TOKEN_CACHE: Path = PROJECT_ROOT / "data" / "symbol_tokens.json"
 
 
