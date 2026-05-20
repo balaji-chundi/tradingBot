@@ -10,6 +10,7 @@ from fastapi import FastAPI
 
 from app.config import get_settings
 from app.journal.db import dispose_engine, init_db
+from app.orchestrator import Orchestrator
 
 
 def configure_logging() -> None:
@@ -40,9 +41,13 @@ async def lifespan(_: FastAPI) -> AsyncIterator[None]:
     settings = get_settings()
     log.info("startup", broker_mode=settings.broker_mode, db=str(settings.db_path))
     await init_db()
+    orch = Orchestrator()
+    started = await orch.start()
     try:
         yield
     finally:
+        if started:
+            await orch.stop()
         await dispose_engine()
         log.info("shutdown")
 
