@@ -39,6 +39,12 @@ make run                  # boots FastAPI on :8000
 curl localhost:8000/health
 ```
 
+> **Note on the IHX dev server**: `make` isn't installed and `sudo` isn't
+> available, so use the underlying commands directly instead:
+> `uv sync --extra dev`, `uv run pytest`, `uv run uvicorn app.main:app`,
+> `./scripts/deploy.sh`. The Makefile works on the Linode (where we installed
+> `make` during bootstrap) and on any machine with build-essentials.
+
 ## Commands
 
 | Command         | What it does                                                |
