@@ -38,3 +38,26 @@ class Bar:
     close: float
     volume: int
     interval: str = "1m"
+
+
+@dataclass(frozen=True, slots=True)
+class Signal:
+    """ORB breakout candidate emitted by the strategy layer.
+
+    Phase 2 produces these from closed bars; Phase 3 risk-sizes them into
+    Orders (or rejects them via [[risk-limits]]). `breakout_price` is the close
+    of the breakout bar — the actual fill price comes from the broker adapter
+    on the next tick.
+    """
+
+    symbol: str
+    direction: str  # "long" | "short"
+    breakout_close_time: datetime
+    breakout_price: float
+    or_high: float
+    or_low: float
+    stop: float
+    target: float
+    bar_volume: int
+    avg_prior_5bar_volume: float
+    volume_ratio: float

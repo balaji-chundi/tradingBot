@@ -22,6 +22,7 @@ from app.data.feed import AngelFeed
 from app.data.store import write_bar, write_ticks_batch
 from app.data.types import Bar, Tick
 from app.journal.db import get_session_factory
+from app.strategy.orb import ORBStrategy
 from app.strategy.universe import load_token_map
 
 log = structlog.get_logger()
@@ -61,7 +62,7 @@ class Orchestrator:
         self.feed_thread.start()
 
         self.tasks.append(asyncio.create_task(self._tick_consumer(), name="tick-consumer"))
-        self.tasks.append(asyncio.create_task(self._bar_writer(), name="bar-writer"))
+        self.tasks.append(asyncio.create_task(self._bar_consumer(), name="bar-consumer"))
         log.info(
             "orchestrator_started",
             symbols=len(token_map),
@@ -120,8 +121,9 @@ class Orchestrator:
                 except asyncio.QueueFull:
                     pass
 
-    async def _bar_writer(self) -> None:
+    async def _bar_consumer(self) -> None:
         session_factory = get_session_factory()
+        orb = ORBStrategy()
         while not self.stop_event.is_set():
             try:
                 bar = await asyncio.wait_for(self.bar_q.get(), timeout=1.0)
@@ -137,3 +139,16 @@ class Orchestrator:
                 close=bar.close,
                 volume=bar.volume,
             )
+            signal = orb.on_bar(bar)
+            if signal is not None:
+                log.info(
+                    "orb_signal",
+                    symbol=signal.symbol,
+                    direction=signal.direction,
+                    entry=signal.breakout_price,
+                    stop=signal.stop,
+                    target=signal.target,
+                    or_high=signal.or_high,
+                    or_low=signal.or_low,
+                    volume_ratio=round(signal.volume_ratio, 2),
+                )
