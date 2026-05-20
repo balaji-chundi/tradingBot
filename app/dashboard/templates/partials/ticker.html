@@ -1,0 +1,22 @@
+{% if rows %}
+<table>
+  <thead>
+    <tr>
+      <th>Symbol</th>
+      <th class="num">LTP</th>
+      <th>Updated (IST)</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for r in rows %}
+    <tr>
+      <td>{{ r.symbol }}</td>
+      <td class="num">{{ '%.2f' % r.ltp if r.ltp is not none else '—' }}</td>
+      <td class="muted">{{ r.ts_ist }}</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% else %}
+<div class="empty">no ticks yet — feed may not be running</div>
+{% endif %}

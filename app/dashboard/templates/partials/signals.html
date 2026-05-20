@@ -1,0 +1,34 @@
+{% if rows %}
+<table>
+  <thead>
+    <tr>
+      <th>Time</th>
+      <th>Symbol</th>
+      <th>Dir</th>
+      <th class="num">Qty</th>
+      <th class="num">Entry</th>
+      <th class="num">Stop</th>
+      <th class="num">Target</th>
+      <th>Status</th>
+      <th>LLM</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for r in rows %}
+    <tr>
+      <td class="muted">{{ r.ts_ist }}</td>
+      <td>{{ r.symbol }}</td>
+      <td><span class="pill {{ r.direction }}">{{ r.direction }}</span></td>
+      <td class="num">{{ r.qty }}</td>
+      <td class="num">{{ r.entry }}</td>
+      <td class="num">{{ r.stop }}</td>
+      <td class="num">{{ r.target }}</td>
+      <td><span class="pill {{ r.status }}">{{ r.status }}</span></td>
+      <td class="muted">{{ r.pretrade_decision }}</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% else %}
+<div class="empty">no signals today</div>
+{% endif %}

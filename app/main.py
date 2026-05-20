@@ -9,6 +9,7 @@ import structlog
 from fastapi import FastAPI
 
 from app.config import get_settings
+from app.dashboard.routes import router as dashboard_router
 from app.journal.db import dispose_engine, init_db
 from app.orchestrator import Orchestrator
 
@@ -53,6 +54,7 @@ async def lifespan(_: FastAPI) -> AsyncIterator[None]:
 
 
 app = FastAPI(title="trading-app", version="0.1.0", lifespan=lifespan)
+app.include_router(dashboard_router)
 
 
 @app.get("/health")

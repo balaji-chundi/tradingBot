@@ -1,0 +1,26 @@
+{% if rows %}
+<table>
+  <thead>
+    <tr>
+      <th>Symbol</th>
+      <th>Side</th>
+      <th class="num">Qty</th>
+      <th class="num">Entry</th>
+      <th>Opened (IST)</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for r in rows %}
+    <tr>
+      <td>{{ r.symbol }}</td>
+      <td><span class="pill {{ r.direction }}">{{ r.direction }}</span></td>
+      <td class="num">{{ r.qty }}</td>
+      <td class="num">{{ r.avg_entry }}</td>
+      <td class="muted">{{ r.opened_at_ist }}</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% else %}
+<div class="empty">no open positions</div>
+{% endif %}

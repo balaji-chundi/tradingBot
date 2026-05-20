@@ -1,0 +1,21 @@
+{% if r %}
+<div>
+  <span class="pill {{ r.regime }}">{{ r.regime }}</span>
+  <span class="muted">confidence {{ r.confidence }}</span>
+  <span class="muted">· {{ r.ts_ist }} IST</span>
+</div>
+{% if r.key_drivers %}
+<ul class="drivers">
+  {% for d in r.key_drivers %}<li>{{ d }}</li>{% endfor %}
+</ul>
+{% endif %}
+{% if r.avoid_symbols %}
+<div class="muted" style="margin-top:6px;">avoid: {{ r.avoid_symbols|join(", ") }}</div>
+{% endif %}
+{% if r.watch_symbols %}
+<div class="muted">watch: {{ r.watch_symbols|join(", ") }}</div>
+{% endif %}
+<p class="rationale">{{ r.rationale }}</p>
+{% else %}
+<div class="empty">no regime verdict yet (next call at the top of the 15-min slot 09:30-15:00 IST)</div>
+{% endif %}

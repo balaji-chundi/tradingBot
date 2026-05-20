@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{{ title or "trading-app" }}</title>
+  <script src="https://unpkg.com/htmx.org@1.9.10"></script>
+  <style>
+    :root {
+      --bg: #0d1117;
+      --panel: #161b22;
+      --border: #30363d;
+      --text: #c9d1d9;
+      --muted: #8b949e;
+      --accent: #58a6ff;
+      --green: #3fb950;
+      --red: #f85149;
+      --yellow: #d29922;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      padding: 16px;
+      background: var(--bg);
+      color: var(--text);
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      font-size: 13px;
+      line-height: 1.5;
+    }
+    h1 { font-size: 18px; margin: 0 0 16px 0; color: var(--accent); }
+    h2 { font-size: 13px; margin: 0 0 8px 0; color: var(--muted); text-transform: uppercase; letter-spacing: 0.05em; }
+    .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+    @media (max-width: 900px) { .grid { grid-template-columns: 1fr; } }
+    .card {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 12px 14px;
+    }
+    .card.span2 { grid-column: 1 / -1; }
+    table { width: 100%; border-collapse: collapse; }
+    th, td {
+      padding: 4px 8px;
+      text-align: left;
+      border-bottom: 1px solid var(--border);
+    }
+    th { color: var(--muted); font-weight: normal; text-transform: uppercase; font-size: 11px; }
+    td.num, th.num { text-align: right; }
+    .pos { color: var(--green); }
+    .neg { color: var(--red); }
+    .pill {
+      display: inline-block;
+      padding: 1px 6px;
+      border-radius: 10px;
+      font-size: 11px;
+      background: var(--border);
+      color: var(--text);
+    }
+    .pill.long { background: rgba(63,185,80,0.2); color: var(--green); }
+    .pill.short { background: rgba(248,81,73,0.2); color: var(--red); }
+    .pill.risk_on { background: rgba(63,185,80,0.2); color: var(--green); }
+    .pill.risk_off { background: rgba(248,81,73,0.2); color: var(--red); }
+    .pill.neutral { background: rgba(210,153,34,0.2); color: var(--yellow); }
+    .pill.FILLED { background: rgba(63,185,80,0.15); color: var(--green); }
+    .pill.SUBMITTED, .pill.PENDING { background: rgba(210,153,34,0.15); color: var(--yellow); }
+    .pill.BLOCKED { background: rgba(248,81,73,0.15); color: var(--red); }
+    .pill.BUY { background: rgba(63,185,80,0.15); color: var(--green); }
+    .pill.SELL { background: rgba(248,81,73,0.15); color: var(--red); }
+    .muted { color: var(--muted); }
+    .empty { color: var(--muted); font-style: italic; padding: 8px 0; }
+    .kpi { display: flex; gap: 18px; flex-wrap: wrap; }
+    .kpi-item { display: flex; flex-direction: column; }
+    .kpi-label { font-size: 11px; color: var(--muted); text-transform: uppercase; }
+    .kpi-value { font-size: 18px; font-weight: 600; }
+    .drivers { margin: 4px 0 0 0; padding-left: 18px; color: var(--muted); }
+    .rationale { color: var(--muted); margin-top: 6px; font-style: italic; }
+    header { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 12px; }
+    .stamp { color: var(--muted); font-size: 11px; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>trading-app</h1>
+    <div class="stamp">read-only · polling every 2s · server is source of truth</div>
+  </header>
+  {% block content %}{% endblock %}
+</body>
+</html>

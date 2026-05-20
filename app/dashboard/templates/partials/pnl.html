@@ -1,0 +1,26 @@
+<div class="kpi">
+  <div class="kpi-item">
+    <span class="kpi-label">Capital</span>
+    <span class="kpi-value">₹{{ "{:,.0f}".format(s.capital_inr) }}</span>
+  </div>
+  <div class="kpi-item">
+    <span class="kpi-label">Realised today</span>
+    <span class="kpi-value {{ 'pos' if s.realised_today >= 0 else 'neg' }}">
+      ₹{{ "{:,.2f}".format(s.realised_today) }}
+    </span>
+  </div>
+  <div class="kpi-item">
+    <span class="kpi-label">Realised week</span>
+    <span class="kpi-value {{ 'pos' if s.realised_week >= 0 else 'neg' }}">
+      ₹{{ "{:,.2f}".format(s.realised_week) }}
+    </span>
+  </div>
+  <div class="kpi-item">
+    <span class="kpi-label">Trades today</span>
+    <span class="kpi-value">{{ s.trades_today }} / 2</span>
+  </div>
+  <div class="kpi-item">
+    <span class="kpi-label">Open positions</span>
+    <span class="kpi-value">{{ s.open_position_count }} / 2</span>
+  </div>
+</div>

@@ -1,0 +1,53 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="card span2">
+  <h2>P&amp;L summary</h2>
+  <div hx-get="/partials/pnl" hx-trigger="load, every 2s" hx-swap="innerHTML">
+    <div class="empty">loading…</div>
+  </div>
+</div>
+
+<div class="grid" style="margin-top: 16px;">
+  <div class="card">
+    <h2>Open positions</h2>
+    <div hx-get="/partials/positions" hx-trigger="load, every 2s" hx-swap="innerHTML">
+      <div class="empty">loading…</div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>Latest regime</h2>
+    <div hx-get="/partials/regime" hx-trigger="load, every 5s" hx-swap="innerHTML">
+      <div class="empty">loading…</div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>LTP ticker</h2>
+    <div hx-get="/partials/ticker" hx-trigger="load, every 2s" hx-swap="innerHTML">
+      <div class="empty">loading…</div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>Today's signals</h2>
+    <div hx-get="/partials/signals" hx-trigger="load, every 3s" hx-swap="innerHTML">
+      <div class="empty">loading…</div>
+    </div>
+  </div>
+
+  <div class="card span2">
+    <h2>Recent fills &amp; slippage</h2>
+    <div hx-get="/partials/fills" hx-trigger="load, every 3s" hx-swap="innerHTML">
+      <div class="empty">loading…</div>
+    </div>
+  </div>
+
+  <div class="card span2">
+    <h2>Risk blocks today</h2>
+    <div hx-get="/partials/risk-blocks" hx-trigger="load, every 5s" hx-swap="innerHTML">
+      <div class="empty">loading…</div>
+    </div>
+  </div>
+</div>
+{% endblock %}

@@ -1,0 +1,22 @@
+{% if rows %}
+<table>
+  <thead>
+    <tr>
+      <th>Time</th>
+      <th>Symbol</th>
+      <th>Reason</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for r in rows %}
+    <tr>
+      <td class="muted">{{ r.ts_ist }}</td>
+      <td>{{ r.symbol }}</td>
+      <td><span class="pill BLOCKED">{{ r.reason }}</span></td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% else %}
+<div class="empty">no risk blocks today (everything is allowed through)</div>
+{% endif %}
