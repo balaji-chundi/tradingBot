@@ -17,10 +17,12 @@ from typing import Any
 import structlog
 
 from app.brokers.angelone import load_tokens
+from app.brokers.paper import PaperBroker
 from app.data.bars import BarAggregator
 from app.data.feed import AngelFeed
 from app.data.store import write_bar, write_ticks_batch
 from app.data.types import Bar, Tick
+from app.execution.engine import ExecutionEngine, initial_realised_pnl
 from app.journal.db import get_session_factory
 from app.strategy.orb import ORBStrategy
 from app.strategy.universe import load_token_map
@@ -41,6 +43,8 @@ class Orchestrator:
         self.feed: AngelFeed | None = None
         self.feed_thread: threading.Thread | None = None
         self.tasks: list[asyncio.Task[Any]] = []
+        self.broker: PaperBroker | None = None
+        self.engine: ExecutionEngine | None = None
 
     async def start(self) -> bool:
         """Returns True if the feed actually started, False if prerequisites missing."""
@@ -61,12 +65,21 @@ class Orchestrator:
         )
         self.feed_thread.start()
 
+        session_factory = get_session_factory()
+        self.broker = PaperBroker(session_factory)
+        self.engine = ExecutionEngine(self.broker, session_factory)
+        # Restore today's and this week's realised P&L if we restarted mid-day.
+        today, week = await initial_realised_pnl(session_factory)
+        self.engine.restore_pnl_state(realised_today=today, realised_week=week)
+
         self.tasks.append(asyncio.create_task(self._tick_consumer(), name="tick-consumer"))
         self.tasks.append(asyncio.create_task(self._bar_consumer(), name="bar-consumer"))
         log.info(
             "orchestrator_started",
             symbols=len(token_map),
             client=tokens.client_code,
+            realised_today=round(today, 2),
+            realised_week=round(week, 2),
         )
         return True
 
@@ -106,6 +119,12 @@ class Orchestrator:
                 except TimeoutError:
                     await flush()
                     continue
+
+                # Engine processes the tick first (broker fills, exit triggers)
+                # so persistence and aggregation don't sit between fill arrival
+                # and exit-condition evaluation.
+                if self.engine is not None:
+                    await self.engine.on_tick(tick)
 
                 batch.append(tick)
                 closed = agg.ingest(tick)
@@ -152,3 +171,5 @@ class Orchestrator:
                     or_low=signal.or_low,
                     volume_ratio=round(signal.volume_ratio, 2),
                 )
+                if self.engine is not None:
+                    await self.engine.on_signal(signal)
