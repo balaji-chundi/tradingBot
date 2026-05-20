@@ -90,7 +90,7 @@ def fetch_and_cache_universe_tokens(api: Any) -> dict[str, str]:
     """For each universe symbol, look up the NSE symboltoken via searchScrip."""
     mapping: dict[str, str] = {}
     for symbol in NIFTY_5_UNIVERSE:
-        result = api.searchScrip(exchange="NSE", searchtext=symbol)
+        result = api.searchScrip(exchange="NSE", searchscrip=symbol)
         match = _select_match(result, symbol)
         if not match:
             raise RuntimeError(f"searchScrip returned no NSE EQ match for {symbol}: {result}")

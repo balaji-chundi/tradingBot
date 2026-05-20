@@ -60,12 +60,31 @@ def load_tokens() -> AuthTokens:
     )
 
 
+def _stub_legacy_smartapi() -> None:
+    """Replace SmartApi's legacy v1 WebSocket modules with empty stubs.
+
+    Their `__init__.py` unconditionally imports `smartApiWebsocket`, which pulls
+    in autobahn + twisted (~12 MB of deps we never use — we use SmartWebSocketV2).
+    Insert sentinel modules into `sys.modules` before SmartApi loads so its init
+    succeeds without those packages installed.
+    """
+    import sys
+    import types
+
+    for legacy in ("SmartApi.smartApiWebsocket", "SmartApi.webSocket"):
+        if legacy not in sys.modules:
+            stub = types.ModuleType(legacy)
+            stub.SmartWebSocket = object  # type: ignore[attr-defined]
+            sys.modules[legacy] = stub
+
+
 def build_smart_connect() -> Any:
     """Return a SmartConnect instance constructed from the .env API key.
 
     Kept as a lazy import so unit tests that don't touch the SDK don't pay the
     import cost (smartapi-python brings in `requests`, `logzero`, etc.).
     """
+    _stub_legacy_smartapi()
     from SmartApi import SmartConnect  # type: ignore[import-untyped]
 
     settings = get_settings()

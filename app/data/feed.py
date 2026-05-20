@@ -90,6 +90,9 @@ class AngelFeed:
                     break
 
     def _connect_once(self) -> None:
+        from app.brokers.angelone import _stub_legacy_smartapi
+
+        _stub_legacy_smartapi()
         from SmartApi.smartWebSocketV2 import SmartWebSocketV2  # type: ignore[import-untyped]
 
         settings = get_settings()

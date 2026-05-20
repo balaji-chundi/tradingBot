@@ -19,6 +19,13 @@ dependencies = [
     "httpx>=0.27",
     "smartapi-python>=1.5",
     "pyotp>=2.9",
+    # smartapi-python forgets to declare these in its own metadata. Without
+    # logzero/websocket-client/six the package fails to import; we sidestep the
+    # legacy v1 (autobahn/twisted) modules via a sys.modules stub in
+    # app.brokers.angelone, see _stub_legacy_smartapi.
+    "logzero>=1.7",
+    "websocket-client>=1.8",
+    "six>=1.16",
 ]
 
 [project.optional-dependencies]
