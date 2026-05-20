@@ -19,18 +19,22 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from fastapi import APIRouter, Request
+from fastapi import APIRouter, Depends, Request
 from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
 
 from app.config import get_settings
 from app.dashboard import queries
+from app.dashboard.auth import require_auth
 from app.journal.db import get_session_factory
 
 _TEMPLATES_DIR = Path(__file__).parent / "templates"
 templates = Jinja2Templates(directory=str(_TEMPLATES_DIR))
 
-router = APIRouter(tags=["dashboard"])
+# Every dashboard route is gated by require_auth. When DASHBOARD_USER /
+# DASHBOARD_PASSWORD are blank in .env, require_auth returns immediately
+# (dev mode). When both are set, browsers get a native login prompt.
+router = APIRouter(tags=["dashboard"], dependencies=[Depends(require_auth)])
 
 
 @router.get("/", response_class=HTMLResponse)

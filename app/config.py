@@ -38,6 +38,11 @@ class Settings(BaseSettings):
     risk_per_trade_pct: float = 1.0
     max_trades_per_day: int = 2
 
+    # Dashboard HTTP Basic Auth. Leave both blank to disable the gate (dev mode).
+    # When both are set, every dashboard route requires these credentials.
+    dashboard_user: str = ""
+    dashboard_password: str = ""
+
     log_level: str = "INFO"
     log_dir: Path = PROJECT_ROOT / "logs"
     db_path: Path = PROJECT_ROOT / "data" / "journal.db"
