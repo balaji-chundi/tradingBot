@@ -1,4 +1,4 @@
-.PHONY: install run test lint format typecheck kill report clean help
+.PHONY: install run test lint format typecheck kill report deploy clean help
 
 # We use uv (https://docs.astral.sh/uv/) for env + package management.
 # Install once: curl -LsSf https://astral.sh/uv/install.sh | sh
@@ -13,6 +13,7 @@ help:
 	@echo "make typecheck  - mypy --strict on app/"
 	@echo "make kill       - run the kill-switch entrypoint (Phase 6)"
 	@echo "make report     - generate end-of-day report (Phase 6)"
+	@echo "make deploy     - rsync working tree to the Linode and uv sync there"
 	@echo "make clean      - remove venv and caches"
 
 install:
@@ -44,6 +45,9 @@ kill:
 
 report:
 	$(UV) run python -m app.scripts.eod_report
+
+deploy:
+	./scripts/deploy.sh
 
 clean:
 	rm -rf .venv .pytest_cache .mypy_cache .ruff_cache build dist *.egg-info uv.lock
