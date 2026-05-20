@@ -18,12 +18,16 @@ import structlog
 
 from app.brokers.angelone import load_tokens
 from app.brokers.paper import PaperBroker
+from app.config import get_settings
 from app.data.bars import BarAggregator
 from app.data.feed import AngelFeed
 from app.data.store import write_bar, write_ticks_batch
 from app.data.types import Bar, Tick
 from app.execution.engine import ExecutionEngine, initial_realised_pnl
 from app.journal.db import get_session_factory
+from app.llm.client import GeminiClient
+from app.llm.regime import run_regime_check
+from app.scheduler import RegimeScheduler
 from app.strategy.orb import ORBStrategy
 from app.strategy.universe import load_token_map
 
@@ -45,6 +49,8 @@ class Orchestrator:
         self.tasks: list[asyncio.Task[Any]] = []
         self.broker: PaperBroker | None = None
         self.engine: ExecutionEngine | None = None
+        self.gemini: GeminiClient | None = None
+        self.regime_scheduler: RegimeScheduler | None = None
 
     async def start(self) -> bool:
         """Returns True if the feed actually started, False if prerequisites missing."""
@@ -67,10 +73,42 @@ class Orchestrator:
 
         session_factory = get_session_factory()
         self.broker = PaperBroker(session_factory)
-        self.engine = ExecutionEngine(self.broker, session_factory)
+
+        settings = get_settings()
+        if settings.gemini_api_key:
+            self.gemini = GeminiClient(session_factory)
+        else:
+            log.warning("gemini_disabled", reason="GEMINI_API_KEY not set in .env")
+
+        self.engine = ExecutionEngine(self.broker, session_factory, self.gemini)
         # Restore today's and this week's realised P&L if we restarted mid-day.
         today, week = await initial_realised_pnl(session_factory)
         self.engine.restore_pnl_state(realised_today=today, realised_week=week)
+
+        if self.gemini is not None:
+            engine = self.engine
+
+            async def regime_task() -> None:
+                # Build the open-positions summary on each call (engine state can shift).
+                open_positions = [
+                    {
+                        "symbol": p.symbol,
+                        "direction": p.direction,
+                        "qty": p.qty,
+                        "entry_price": round(p.entry_price, 4),
+                    }
+                    for p in engine._open.values()  # noqa: SLF001
+                ]
+                await run_regime_check(
+                    client=self.gemini,  # type: ignore[arg-type]
+                    session_factory=session_factory,
+                    open_positions_summary=open_positions,
+                    realised_pnl_today=engine._realised_today,  # noqa: SLF001
+                    unrealised_pnl_today=engine._unrealised_today,  # noqa: SLF001
+                )
+
+            self.regime_scheduler = RegimeScheduler(regime_task)
+            self.regime_scheduler.start()
 
         self.tasks.append(asyncio.create_task(self._tick_consumer(), name="tick-consumer"))
         self.tasks.append(asyncio.create_task(self._bar_consumer(), name="bar-consumer"))
@@ -85,6 +123,8 @@ class Orchestrator:
 
     async def stop(self) -> None:
         self.stop_event.set()
+        if self.regime_scheduler is not None:
+            self.regime_scheduler.shutdown()
         if self.feed is not None:
             self.feed.stop()
         for t in self.tasks:

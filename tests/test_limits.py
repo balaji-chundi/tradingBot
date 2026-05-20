@@ -112,3 +112,52 @@ def test_weekly_loss_limit_hit() -> None:
     )
     assert block is not None
     assert block.reason == "weekly_loss_limit_hit"
+
+
+def test_regime_risk_off_high_confidence_blocks() -> None:
+    block = check_all(
+        snapshot=_snap(now=_ist(10, 30)),
+        symbol="RELIANCE-EQ",
+        latest_regime_label="risk_off",
+        latest_regime_confidence=0.85,
+        respect_regime=True,
+        **COMMON,
+    )
+    assert block is not None
+    assert block.reason == "regime_risk_off"
+
+
+def test_regime_risk_off_low_confidence_does_not_block() -> None:
+    block = check_all(
+        snapshot=_snap(now=_ist(10, 30)),
+        symbol="RELIANCE-EQ",
+        latest_regime_label="risk_off",
+        latest_regime_confidence=0.5,
+        respect_regime=True,
+        **COMMON,
+    )
+    assert block is None
+
+
+def test_regime_check_disabled_when_respect_regime_false() -> None:
+    block = check_all(
+        snapshot=_snap(now=_ist(10, 30)),
+        symbol="RELIANCE-EQ",
+        latest_regime_label="risk_off",
+        latest_regime_confidence=0.99,
+        respect_regime=False,
+        **COMMON,
+    )
+    assert block is None
+
+
+def test_regime_check_passes_when_no_verdict() -> None:
+    block = check_all(
+        snapshot=_snap(now=_ist(10, 30)),
+        symbol="RELIANCE-EQ",
+        latest_regime_label=None,
+        latest_regime_confidence=None,
+        respect_regime=True,
+        **COMMON,
+    )
+    assert block is None

@@ -32,6 +32,9 @@ from app.config import IST, get_settings
 from app.data.types import Signal as SignalT
 from app.data.types import Tick
 from app.journal import models as m
+from app.llm.client import GeminiClient
+from app.llm.context import latest_regime_dict
+from app.llm.pretrade import run_pretrade_check
 from app.risk.limits import EngineSnapshot, RiskBlock, check_all
 from app.risk.sizing import size_position
 
@@ -60,15 +63,19 @@ class ExecutionEngine:
         self,
         broker: BrokerInterface,
         session_factory: async_sessionmaker[AsyncSession],
+        gemini_client: GeminiClient | None = None,
     ) -> None:
         self._broker = broker
         self._sf = session_factory
+        self._gemini = gemini_client
         settings = get_settings()
         self._capital = settings.capital_inr
         self._daily_loss_limit = settings.daily_loss_limit_inr
         self._weekly_loss_limit = settings.weekly_loss_limit_inr
         self._risk_pct = settings.risk_per_trade_pct
         self._max_trades_per_day = settings.max_trades_per_day
+        self._respect_regime = settings.respect_regime
+        self._pretrade_enabled = settings.pretrade_llm_check
 
         self._open: dict[int, _OpenPosition] = {}
         self._open_by_symbol: dict[str, int] = {}
@@ -86,9 +93,13 @@ class ExecutionEngine:
         self._realised_week = realised_week
 
     async def on_signal(self, signal: SignalT) -> int | None:
-        """Risk-check, size, and place an entry order. Returns Signal.id or None."""
+        """Risk-check, size, optionally LLM-vet, and place an entry order. Returns Signal.id."""
         now = signal.breakout_close_time
         snapshot = self._snapshot(now)
+
+        regime = await latest_regime_dict(self._sf, now_utc=now)
+        regime_label = regime.get("regime") if regime else None
+        regime_conf = regime.get("confidence") if regime else None
 
         block = check_all(
             snapshot=snapshot,
@@ -96,6 +107,9 @@ class ExecutionEngine:
             daily_loss_limit_inr=self._daily_loss_limit,
             weekly_loss_limit_inr=self._weekly_loss_limit,
             max_trades_per_day=self._max_trades_per_day,
+            latest_regime_label=regime_label,
+            latest_regime_confidence=regime_conf,
+            respect_regime=self._respect_regime,
         )
         if block is not None:
             await self._log_risk_block(block, signal=signal)
@@ -122,12 +136,50 @@ class ExecutionEngine:
             )
             return None
 
-        signal_id = await self._persist_signal(signal, qty=sizing.qty, status="SUBMITTED")
+        qty = sizing.qty
+        pretrade_reason: str | None = None
+        if self._pretrade_enabled and self._gemini is not None:
+            decision = await run_pretrade_check(
+                client=self._gemini,
+                session_factory=self._sf,
+                signal=signal,
+                qty=qty,
+            )
+            if decision.decision == "skip":
+                await self._log_risk_block(
+                    RiskBlock(
+                        reason="pretrade_skip",
+                        detail={"llm_reason": decision.reason},
+                    ),
+                    signal=signal,
+                )
+                return None
+            if decision.decision == "reduce_size":
+                scaled = int(qty * decision.size_multiplier)
+                if scaled < 1:
+                    await self._log_risk_block(
+                        RiskBlock(
+                            reason="pretrade_reduce_below_1",
+                            detail={
+                                "original_qty": qty,
+                                "multiplier": decision.size_multiplier,
+                                "llm_reason": decision.reason,
+                            },
+                        ),
+                        signal=signal,
+                    )
+                    return None
+                qty = scaled
+                pretrade_reason = decision.reason
+
+        signal_id = await self._persist_signal(
+            signal, qty=qty, status="SUBMITTED", pretrade_decision=pretrade_reason
+        )
         side = "BUY" if signal.direction == "long" else "SELL"
         order = NewOrder(
             symbol=signal.symbol,
             side=side,
-            qty=sizing.qty,
+            qty=qty,
             order_type="MARKET",
             signal_id=signal_id,
             ideal_price=signal.breakout_price,
@@ -140,10 +192,11 @@ class ExecutionEngine:
             signal_id=signal_id,
             symbol=signal.symbol,
             side=side,
-            qty=sizing.qty,
+            qty=qty,
             stop=signal.stop,
             target=signal.target,
             trades_today=self._trades_today,
+            regime=regime_label,
         )
         return signal_id
 
@@ -335,7 +388,14 @@ class ExecutionEngine:
                 total += (pos.entry_price - tick.ltp) * pos.qty
         self._unrealised_today = total
 
-    async def _persist_signal(self, signal: SignalT, *, qty: int, status: str) -> int:
+    async def _persist_signal(
+        self,
+        signal: SignalT,
+        *,
+        qty: int,
+        status: str,
+        pretrade_decision: str | None = None,
+    ) -> int:
         async with self._sf() as session:
             row = m.Signal(
                 symbol=signal.symbol,
@@ -347,6 +407,7 @@ class ExecutionEngine:
                 stop=signal.stop,
                 target=signal.target,
                 status=status,
+                pretrade_decision=pretrade_decision,
                 created_at=signal.breakout_close_time,
             )
             session.add(row)

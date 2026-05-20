@@ -11,7 +11,7 @@ Section 6 of the brief:
     * Open positions count ≥ 2
     * Time outside 09:30-14:45 IST (no late entries)
     * WebSocket has been disconnected within last 60 seconds   (Phase 6)
-    * LLM regime risk_off with respect_regime=True             (Phase 4)
+    * LLM regime risk_off with confidence > 0.7 + respect_regime=True
 Plus from Section 5:
     * Max trades today ≥ 2
     * Re-entry on a stopped-out symbol disallowed
@@ -53,6 +53,9 @@ def _in_entry_window(now_utc: datetime) -> bool:
     return TRADING_ENTRY_START <= ist < TRADING_ENTRY_END
 
 
+REGIME_RISK_OFF_CONFIDENCE_THRESHOLD = 0.7
+
+
 def check_all(
     *,
     snapshot: EngineSnapshot,
@@ -60,6 +63,9 @@ def check_all(
     daily_loss_limit_inr: float,
     weekly_loss_limit_inr: float,
     max_trades_per_day: int,
+    latest_regime_label: str | None = None,
+    latest_regime_confidence: float | None = None,
+    respect_regime: bool = True,
 ) -> RiskBlock | None:
     if not _in_entry_window(snapshot.now_utc):
         return RiskBlock(
@@ -107,6 +113,20 @@ def check_all(
             detail={
                 "realised_week": snapshot.realised_pnl_week,
                 "limit": -weekly_loss_limit_inr,
+            },
+        )
+
+    if (
+        respect_regime
+        and latest_regime_label == "risk_off"
+        and latest_regime_confidence is not None
+        and latest_regime_confidence > REGIME_RISK_OFF_CONFIDENCE_THRESHOLD
+    ):
+        return RiskBlock(
+            reason="regime_risk_off",
+            detail={
+                "confidence": latest_regime_confidence,
+                "threshold": REGIME_RISK_OFF_CONFIDENCE_THRESHOLD,
             },
         )
 
