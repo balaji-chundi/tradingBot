@@ -20,6 +20,7 @@ counters; the broker only tracks pending orders.
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import UTC, datetime, time, timedelta
 
@@ -64,10 +65,16 @@ class ExecutionEngine:
         broker: BrokerInterface,
         session_factory: async_sessionmaker[AsyncSession],
         gemini_client: GeminiClient | None = None,
+        *,
+        is_killed: Callable[[], bool] | None = None,
+        feed_age_s: Callable[[], float | None] | None = None,
     ) -> None:
         self._broker = broker
         self._sf = session_factory
         self._gemini = gemini_client
+        # Callable indirection avoids a circular dep with orchestrator.
+        self._is_killed = is_killed or (lambda: False)
+        self._feed_age_s = feed_age_s or (lambda: None)
         settings = get_settings()
         self._capital = settings.capital_inr
         self._daily_loss_limit = settings.daily_loss_limit_inr
@@ -110,6 +117,8 @@ class ExecutionEngine:
             latest_regime_label=regime_label,
             latest_regime_confidence=regime_conf,
             respect_regime=self._respect_regime,
+            feed_age_s=self._feed_age_s(),
+            kill_switch_active=self._is_killed(),
         )
         if block is not None:
             await self._log_risk_block(block, signal=signal)
@@ -318,15 +327,7 @@ class ExecutionEngine:
     async def _check_exits(self, tick: Tick) -> None:
         position_id = self._open_by_symbol.get(tick.symbol)
         time_stop_active = self._time_stop_active(tick.ts)
-
-        # Time stop fires across all open positions, not just tick.symbol's
-        for pid, pos in list(self._open.items()):
-            if pos.exit_order_pending:
-                continue
-            if time_stop_active and pid != position_id:
-                # We'll only emit time-stop exit when a tick arrives for that
-                # position's symbol — otherwise we don't have a price to fill at.
-                continue
+        killed = self._is_killed()
 
         # The symbol-specific exits use tick.ltp
         if position_id is None:
@@ -336,7 +337,10 @@ class ExecutionEngine:
             return
 
         reason: str | None = None
-        if time_stop_active:
+        if killed:
+            # Force market exit on the kill switch — overrides stop/target/time.
+            reason = "kill_switch"
+        elif time_stop_active:
             reason = "time_stop"
         elif pos.direction == "long":
             if tick.ltp <= pos.stop:

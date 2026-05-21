@@ -11,14 +11,16 @@ works in that mode, useful before `python -m app.scripts.auth` has been run.
 from __future__ import annotations
 
 import asyncio
+import signal as signal_module
 import threading
+from datetime import datetime
 from typing import Any
 
 import structlog
 
 from app.brokers.angelone import load_tokens
 from app.brokers.paper import PaperBroker
-from app.config import get_settings
+from app.config import IST, get_settings
 from app.data.bars import BarAggregator
 from app.data.feed import AngelFeed
 from app.data.store import write_bar, write_ticks_batch
@@ -30,6 +32,7 @@ from app.llm.regime import run_regime_check
 from app.scheduler import RegimeScheduler
 from app.strategy.orb import ORBStrategy
 from app.strategy.universe import load_token_map
+from app.util.calendar import is_trading_day, reason_for_closure
 
 log = structlog.get_logger()
 
@@ -51,9 +54,22 @@ class Orchestrator:
         self.engine: ExecutionEngine | None = None
         self.gemini: GeminiClient | None = None
         self.regime_scheduler: RegimeScheduler | None = None
+        self.kill_switch_active: bool = False
+        self._prior_sigusr1_handler: Any = None
 
     async def start(self) -> bool:
         """Returns True if the feed actually started, False if prerequisites missing."""
+        # Honor the NSE calendar — skip boot on weekends and known holidays so
+        # we don't burn API quota or fire empty regime calls.
+        today_ist = datetime.now(IST).date()
+        if not is_trading_day(today_ist):
+            log.warning(
+                "orchestrator_skip",
+                reason=reason_for_closure(today_ist),
+                ist_date=str(today_ist),
+            )
+            return False
+
         try:
             tokens = load_tokens()
             token_map = load_token_map()
@@ -80,10 +96,26 @@ class Orchestrator:
         else:
             log.warning("gemini_disabled", reason="GEMINI_API_KEY not set in .env")
 
-        self.engine = ExecutionEngine(self.broker, session_factory, self.gemini)
+        self.engine = ExecutionEngine(
+            self.broker,
+            session_factory,
+            self.gemini,
+            is_killed=lambda: self.kill_switch_active,
+            feed_age_s=lambda: self.feed.last_message_age_s if self.feed is not None else None,
+        )
         # Restore today's and this week's realised P&L if we restarted mid-day.
         today, week = await initial_realised_pnl(session_factory)
         self.engine.restore_pnl_state(realised_today=today, realised_week=week)
+
+        # Install kill-switch signal handler. `python -m app.kill` sends SIGUSR1.
+        try:
+            self._prior_sigusr1_handler = signal_module.signal(
+                signal_module.SIGUSR1, self._on_sigusr1
+            )
+            log.info("kill_switch_handler_installed", signal="SIGUSR1")
+        except (AttributeError, ValueError) as e:
+            # Windows / non-main-thread contexts don't support custom handlers.
+            log.warning("kill_switch_handler_unavailable", error=str(e))
 
         if self.gemini is not None:
             engine = self.engine
@@ -137,7 +169,20 @@ class Orchestrator:
         self.tasks.clear()
         if self.feed_thread is not None:
             self.feed_thread.join(timeout=5)
+        # Restore the prior SIGUSR1 handler so re-using the process (tests, dev
+        # reload) doesn't leak our handler.
+        if self._prior_sigusr1_handler is not None:
+            try:
+                signal_module.signal(signal_module.SIGUSR1, self._prior_sigusr1_handler)
+            except (AttributeError, ValueError):
+                pass
+            self._prior_sigusr1_handler = None
         log.info("orchestrator_stopped")
+
+    def _on_sigusr1(self, signum: int, frame: Any) -> None:
+        # Signal handler context: avoid I/O / async work here. Just flip the
+        # flag; the engine's next on_tick / on_signal observes it.
+        self.kill_switch_active = True
 
     async def _tick_consumer(self) -> None:
         session_factory = get_session_factory()

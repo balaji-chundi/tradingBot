@@ -31,3 +31,15 @@ class PretradeDecision(BaseModel):
     decision: PretradeChoice
     size_multiplier: float = Field(ge=0.0, le=1.0)
     reason: str = Field(min_length=4, max_length=400)
+
+
+class EODReport(BaseModel):
+    """Tier 3 output: end-of-day journal. Persisted as markdown to reports/."""
+
+    headline: str = Field(min_length=10, max_length=240)
+    summary: str = Field(min_length=20, max_length=2000)
+    what_worked: list[str] = Field(default_factory=list, max_length=10)
+    what_didnt_work: list[str] = Field(default_factory=list, max_length=10)
+    regime_accuracy: str = Field(min_length=10, max_length=2000)
+    parameter_suggestions: list[str] = Field(default_factory=list, max_length=10)
+    universe_suggestions: list[str] = Field(default_factory=list, max_length=10)

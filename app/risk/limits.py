@@ -54,6 +54,7 @@ def _in_entry_window(now_utc: datetime) -> bool:
 
 
 REGIME_RISK_OFF_CONFIDENCE_THRESHOLD = 0.7
+FEED_STALE_SECONDS = 60.0
 
 
 def check_all(
@@ -66,7 +67,18 @@ def check_all(
     latest_regime_label: str | None = None,
     latest_regime_confidence: float | None = None,
     respect_regime: bool = True,
+    feed_age_s: float | None = None,
+    kill_switch_active: bool = False,
 ) -> RiskBlock | None:
+    if kill_switch_active:
+        return RiskBlock(reason="kill_switch", detail={})
+
+    if feed_age_s is not None and feed_age_s > FEED_STALE_SECONDS:
+        return RiskBlock(
+            reason="feed_stale",
+            detail={"age_s": round(feed_age_s, 1), "limit_s": FEED_STALE_SECONDS},
+        )
+
     if not _in_entry_window(snapshot.now_utc):
         return RiskBlock(
             reason="outside_entry_window",

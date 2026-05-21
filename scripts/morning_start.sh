@@ -32,6 +32,27 @@ LOGFILE="$LOGDIR/morning-$(date -u +%Y-%m-%d).log"
   echo "[$(date -u)] morning_start.sh begin"
   echo "===================================================================="
 
+  echo "[$(date -u)] step 0/3: skip if today is not an NSE trading day"
+  if ! uv run python -c "
+import sys
+from datetime import datetime
+from zoneinfo import ZoneInfo
+from app.util.calendar import is_trading_day, reason_for_closure
+today_ist = datetime.now(ZoneInfo('Asia/Kolkata')).date()
+if not is_trading_day(today_ist):
+    print(f'non-trading day: {today_ist} ({reason_for_closure(today_ist)})')
+    sys.exit(10)
+print(f'trading day: {today_ist}')
+" ; then
+    rc=$?
+    if [ $rc -eq 10 ]; then
+      echo "[$(date -u)] skipping — non-trading day"
+      exit 0
+    fi
+    echo "[$(date -u)] calendar check failed rc=$rc" >&2
+    exit 4
+  fi
+
   echo "[$(date -u)] step 1/3: refresh Angel One JWT + symbol-token cache"
   if uv run python -m app.scripts.auth; then
     echo "[$(date -u)] auth_ok"

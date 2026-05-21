@@ -20,6 +20,7 @@ from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.cron import CronTrigger
 
 from app.config import IST
+from app.util.calendar import is_trading_day
 
 log = structlog.get_logger()
 
@@ -68,6 +69,9 @@ class RegimeScheduler:
 
     async def _guarded_task(self) -> None:
         now_ist = datetime.now(IST)
+        if not is_trading_day(now_ist.date()):
+            log.debug("regime_skip_holiday", date=str(now_ist.date()))
+            return
         hm = (now_ist.hour, now_ist.minute)
         if hm < REGIME_ACTIVE_FROM or hm > REGIME_ACTIVE_UNTIL:
             log.debug("regime_skip_out_of_window", now_ist=now_ist.isoformat())

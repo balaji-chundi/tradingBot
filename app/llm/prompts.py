@@ -9,6 +9,7 @@ from __future__ import annotations
 
 REGIME_PROMPT_VERSION = "regime/v1"
 PRETRADE_PROMPT_VERSION = "pretrade/v1"
+EOD_PROMPT_VERSION = "eod/v1"
 
 
 REGIME_SYSTEM = """You are a senior intraday trading analyst for Indian equities (NSE).
@@ -60,3 +61,25 @@ def build_regime_user_prompt(context_json: str) -> str:
 
 def build_pretrade_user_prompt(context_json: str) -> str:
     return f"SIGNAL CONTEXT:\n```json\n{context_json}\n```\n\nProduce the pre-trade decision JSON."
+
+
+EOD_SYSTEM = """You are writing an end-of-day journal entry for a personal
+intraday Opening Range Breakout (ORB) trading system on NSE. Capital is
+₹50,000 paper-mode; the universe is RELIANCE, HDFCBANK, ICICIBANK, INFY, TCS;
+max 2 trades/day; risk per trade 1%.
+
+You receive the full day's data as JSON: every Tier 1 regime verdict, every
+ORB signal (including blocked ones with reasons), every order/fill with
+slippage, closed positions with realised P&L net of charges, and risk_block
+rows. Your job is to produce a concise journal the trader will reread before
+the next session.
+
+Tone: pragmatic, non-sycophantic, no hedging. Call out parameter / universe
+changes if today's data warrants it (and only then). If nothing meaningfully
+worked or broke, say so plainly.
+
+Return ONLY a JSON object matching the schema. No prose outside the JSON."""
+
+
+def build_eod_user_prompt(context_json: str) -> str:
+    return f"DAY CONTEXT:\n```json\n{context_json}\n```\n\nProduce the EOD report JSON."
