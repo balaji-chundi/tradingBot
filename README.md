@@ -63,6 +63,22 @@ curl localhost:8000/health
 See the [original brief](docs/brief.md) — only Phase 0 paths exist in the tree today.
 Subsequent phases add their own modules in place.
 
+## Cron (automated pre-market boot)
+
+The Linode runs a cron entry that refreshes Angel One tokens and (re)starts
+`uvicorn` every weekday morning before the open. Installed via:
+
+```bash
+ssh root@172.105.58.133
+crontab -l
+# 25 3 * * 1-5 /root/trading-app/scripts/morning_start.sh
+```
+
+That's **03:25 UTC = 08:55 IST**, Mon–Fri. The Linode is on UTC; cron honors the
+system clock. NSE holiday filtering is Phase 6 — until then the cron will fire on
+holidays too, but with no harm (auth succeeds, WS subscribes, no ticks arrive).
+Daily logs land in `/root/trading-app/logs/cron/morning-YYYY-MM-DD.log`.
+
 ## First-morning checklist
 
 Once Phases 1–3 are in:
