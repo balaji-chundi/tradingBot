@@ -18,6 +18,22 @@ async def _isolated_runtime(
     monkeypatch.setenv("DB_PATH", str(tmp_path / "test.db"))
     monkeypatch.setenv("LOG_DIR", str(tmp_path / "logs"))
 
+    # Hermetic tests: blank out any credentials a real .env on the deploy box
+    # might have populated. Individual tests opt back in via monkeypatch.setenv
+    # (e.g. dashboard auth tests set DASHBOARD_USER + DASHBOARD_PASSWORD).
+    # Empty string wins over the .env value because os.environ has higher
+    # precedence in pydantic-settings.
+    for var in (
+        "DASHBOARD_USER",
+        "DASHBOARD_PASSWORD",
+        "ANGELONE_API_KEY",
+        "ANGELONE_CLIENT_CODE",
+        "ANGELONE_MPIN",
+        "ANGELONE_TOTP_SECRET",
+        "GEMINI_API_KEY",
+    ):
+        monkeypatch.setenv(var, "")
+
     from app.journal import db as db_module
 
     db_module._engine = None
