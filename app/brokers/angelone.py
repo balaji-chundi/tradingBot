@@ -85,7 +85,7 @@ def build_smart_connect() -> Any:
     import cost (smartapi-python brings in `requests`, `logzero`, etc.).
     """
     _stub_legacy_smartapi()
-    from SmartApi import SmartConnect  # type: ignore[import-untyped]
+    from SmartApi import SmartConnect
 
     settings = get_settings()
     if not settings.angelone_api_key:

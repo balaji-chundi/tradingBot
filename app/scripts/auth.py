@@ -92,18 +92,24 @@ def login_and_cache_tokens() -> tuple[Any, AuthTokens]:
 def fetch_and_cache_universe_tokens(api: Any) -> dict[str, str]:
     """Look up NSE symboltokens for the universe via searchScrip.
 
-    Falls back to the verified [[hardcoded-nse-tokens]] map when Angel One
-    rejects searchScrip with AB2000 (demat dormant). The fallback is fine
-    because WebSocket V2 market data is unaffected by dormancy; only the
-    order-side endpoints (incl. searchScrip) are blocked.
+    Falls back to [[hardcoded-nse-tokens]] on ANY searchScrip failure —
+    not just AB2000 (dormancy). Observed in production: Angel One throttles
+    rapid-fire searchScrip calls with "Access denied because of exceeding
+    access rate", which raises an exception and used to crash the script
+    after a fresh login had already saved tokens.json. Since the hardcoded
+    map is verified-stable reference data and WebSocket V2 doesn't depend
+    on a live searchScrip result, fail-safe to it whenever the API misbehaves.
     """
     mapping: dict[str, str] = {}
     for symbol in NIFTY_5_UNIVERSE:
         try:
             result = api.searchScrip(exchange="NSE", searchscrip=symbol)
         except Exception as e:
-            log.warning("searchScrip_error_falling_back", symbol=symbol, error=str(e))
-            result = None
+            log.warning("searchScrip_exception_falling_back", symbol=symbol, error=str(e))
+            mapping = dict(HARDCODED_NSE_TOKENS)
+            save_token_map(mapping)
+            return mapping
+        # AB2000 = dormant demat. Same fallback path as exceptions.
         if isinstance(result, dict) and result.get("errorcode") == DORMANT_ERRORCODE:
             log.warning(
                 "searchScrip_blocked_by_dormancy_falling_back",
@@ -115,7 +121,18 @@ def fetch_and_cache_universe_tokens(api: Any) -> dict[str, str]:
             return mapping
         match = _select_match(result, symbol)
         if not match:
-            raise RuntimeError(f"searchScrip returned no NSE EQ match for {symbol}: {result}")
+            # Any non-OK result (rate-limit JSON that decoded to None, empty
+            # data array, schema-mismatch, etc.) — use the hardcoded map and
+            # log loudly. Crashing here means the morning cron never restarts
+            # uvicorn, which is far worse than running with verified tokens.
+            log.warning(
+                "searchScrip_unexpected_result_falling_back",
+                symbol=symbol,
+                result=str(result)[:200],
+            )
+            mapping = dict(HARDCODED_NSE_TOKENS)
+            save_token_map(mapping)
+            return mapping
         mapping[symbol] = str(match["symboltoken"])
         log.info("token_resolved", symbol=symbol, token=mapping[symbol])
     save_token_map(mapping)

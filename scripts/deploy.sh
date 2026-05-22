@@ -17,8 +17,9 @@ rsync -az --delete \
   --exclude='.pytest_cache' \
   --exclude='.mypy_cache' \
   --exclude='.ruff_cache' \
-  --exclude='data/journal.db*' \
+  --exclude='data/' \
   --exclude='logs/' \
+  --exclude='reports/' \
   --exclude='.env' \
   ./ "$REMOTE_HOST:$REMOTE_DIR/"
 
