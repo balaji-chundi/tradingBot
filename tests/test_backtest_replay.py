@@ -14,7 +14,7 @@ from datetime import UTC, date, datetime, timedelta
 
 import pytest
 
-from app.backtest.replay import BacktestSession, BacktestTrade, run_backtest
+from app.backtest.replay import run_backtest
 from app.config import IST
 from app.data.types import Bar
 
@@ -83,18 +83,12 @@ async def test_clean_long_target_hit() -> None:
     """ORB long fires; next bar fills entry; later bar hits target."""
     bars = _build_or_window("HDFCBANK-EQ", or_high=700.0, or_low=680.0)
     # 09:30 breakout bar — close above OR-high with 2x volume
-    bars.append(
-        _bar("HDFCBANK-EQ", 9, 30, o=700.5, high=702.0, low=700.0, c=701.5, v=2000)
-    )
+    bars.append(_bar("HDFCBANK-EQ", 9, 30, o=700.5, high=702.0, low=700.0, c=701.5, v=2000))
     # 09:31 — fills entry at this bar's open (~701.5 area, with slip)
-    bars.append(
-        _bar("HDFCBANK-EQ", 9, 31, o=702.0, high=705.0, low=701.0, c=704.0, v=1500)
-    )
+    bars.append(_bar("HDFCBANK-EQ", 9, 31, o=702.0, high=705.0, low=701.0, c=704.0, v=1500))
     # 09:32 — target = 701.5 + 1.5 * (701.5 - 680) = 733.75. We'll fast-forward
     # with bars in-range first, then a bar with high >= target.
-    bars.append(
-        _bar("HDFCBANK-EQ", 9, 32, o=704.0, high=735.0, low=703.0, c=734.0, v=2000)
-    )
+    bars.append(_bar("HDFCBANK-EQ", 9, 32, o=704.0, high=735.0, low=703.0, c=734.0, v=2000))
 
     result = run_backtest({DAY: {"HDFCBANK-EQ": bars}}, capital_inr=50_000.0)
     assert len(result.trades) == 1
@@ -132,12 +126,8 @@ async def test_time_stop_at_1515_ist() -> None:
     # Entry fills at 9:31; price oscillates between stop/target for hours
     bars.append(_bar("HDFCBANK-EQ", 9, 31, o=702.0, high=705.0, low=698.0, c=703.0, v=1500))
     # Skip ahead — add a bar at 15:14 still in-range, then the 15:15 bar fires time-stop
-    bars.append(
-        _bar("HDFCBANK-EQ", 15, 14, o=702.0, high=703.5, low=699.0, c=701.0, v=1200)
-    )
-    bars.append(
-        _bar("HDFCBANK-EQ", 15, 15, o=701.5, high=702.0, low=700.5, c=701.8, v=1100)
-    )
+    bars.append(_bar("HDFCBANK-EQ", 15, 14, o=702.0, high=703.5, low=699.0, c=701.0, v=1200))
+    bars.append(_bar("HDFCBANK-EQ", 15, 15, o=701.5, high=702.0, low=700.5, c=701.8, v=1100))
 
     result = run_backtest({DAY: {"HDFCBANK-EQ": bars}}, capital_inr=50_000.0)
     assert len(result.trades) == 1

@@ -227,7 +227,18 @@ class Orchestrator:
 
     async def _bar_consumer(self) -> None:
         session_factory = get_session_factory()
-        orb = ORBStrategy()
+        settings = get_settings()
+        orb = ORBStrategy(
+            or_window_minutes=settings.orb_or_window_minutes,
+            volume_multiplier=settings.orb_volume_multiplier,
+            target_r_multiple=settings.orb_target_r_multiple,
+        )
+        log.info(
+            "orb_config",
+            or_window_minutes=settings.orb_or_window_minutes,
+            volume_multiplier=settings.orb_volume_multiplier,
+            target_r_multiple=settings.orb_target_r_multiple,
+        )
         while not self.stop_event.is_set():
             try:
                 bar = await asyncio.wait_for(self.bar_q.get(), timeout=1.0)

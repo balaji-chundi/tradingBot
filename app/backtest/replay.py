@@ -99,8 +99,14 @@ def run_backtest(
     bars_by_date: dict[date, dict[str, list[Bar]]],
     *,
     capital_inr: float | None = None,
+    orb_kwargs: dict[str, object] | None = None,
 ) -> BacktestResult:
-    """Replay all (date, symbol) bars chronologically. Returns trades + sessions."""
+    """Replay all (date, symbol) bars chronologically. Returns trades + sessions.
+
+    `orb_kwargs` is forwarded to `ORBStrategy(**orb_kwargs)` — used by the
+    parameter sweep to vary or_window_minutes / volume_multiplier /
+    target_r_multiple without changing live defaults.
+    """
     settings = get_settings()
     cap = capital_inr if capital_inr is not None else settings.capital_inr
 
@@ -111,7 +117,7 @@ def run_backtest(
         capital_inr=cap,
     )
     for d in dates:
-        sess = _replay_one_day(bars_by_date[d], d, cap, result.trades)
+        sess = _replay_one_day(bars_by_date[d], d, cap, result.trades, orb_kwargs)
         result.sessions.append(sess)
     return result
 
@@ -121,11 +127,12 @@ def _replay_one_day(
     ist_date: date,
     capital_inr: float,
     sink_trades: list[BacktestTrade],
+    orb_kwargs: dict[str, object] | None = None,
 ) -> BacktestSession:
     settings = get_settings()
     risk_pct = settings.risk_per_trade_pct
 
-    orb = ORBStrategy()  # fresh per day; auto-resets anyway, but cleaner
+    orb = ORBStrategy(**(orb_kwargs or {}))  # type: ignore[arg-type]
     open_positions: dict[str, _OpenPos] = {}
     pending_entries: dict[str, _PendingEntry] = {}
     stopped_out_today: set[str] = set()

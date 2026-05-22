@@ -29,10 +29,9 @@ from app.data.types import Bar, Signal
 log = structlog.get_logger()
 
 OR_START_HOUR_IST = 9
-OR_START_MIN_IST = 15
-OR_END_HOUR_IST = 9
-OR_END_MIN_IST = 30  # OR window is [09:15, 09:30); the bar at 09:30 is post-OR
+OR_START_MIN_IST = 15  # Market open
 
+DEFAULT_OR_WINDOW_MINUTES = 15  # OR ends at 09:30 IST by default
 DEFAULT_VOLUME_MULTIPLIER = 1.5
 DEFAULT_VOLUME_LOOKBACK = 5
 DEFAULT_TARGET_R_MULTIPLE = 1.5
@@ -60,15 +59,21 @@ class _SymbolState:
         self.recent_volumes.clear()
 
 
-def _is_in_or_window(open_time_ist: datetime) -> bool:
+def _or_end_hm(or_window_minutes: int) -> tuple[int, int]:
+    """Compute the OR-end (hour, minute) for a given OR window length."""
+    total = OR_START_HOUR_IST * 60 + OR_START_MIN_IST + or_window_minutes
+    return (total // 60, total % 60)
+
+
+def _is_in_or_window(open_time_ist: datetime, or_end_hm: tuple[int, int]) -> bool:
     h, m = open_time_ist.hour, open_time_ist.minute
     after_start = (h, m) >= (OR_START_HOUR_IST, OR_START_MIN_IST)
-    before_end = (h, m) < (OR_END_HOUR_IST, OR_END_MIN_IST)
+    before_end = (h, m) < or_end_hm
     return after_start and before_end
 
 
-def _is_post_or(open_time_ist: datetime) -> bool:
-    return (open_time_ist.hour, open_time_ist.minute) >= (OR_END_HOUR_IST, OR_END_MIN_IST)
+def _is_post_or(open_time_ist: datetime, or_end_hm: tuple[int, int]) -> bool:
+    return (open_time_ist.hour, open_time_ist.minute) >= or_end_hm
 
 
 class ORBStrategy:
@@ -77,10 +82,13 @@ class ORBStrategy:
     def __init__(
         self,
         *,
+        or_window_minutes: int = DEFAULT_OR_WINDOW_MINUTES,
         volume_multiplier: float = DEFAULT_VOLUME_MULTIPLIER,
         volume_lookback: int = DEFAULT_VOLUME_LOOKBACK,
         target_r_multiple: float = DEFAULT_TARGET_R_MULTIPLE,
     ) -> None:
+        self._or_window_minutes = or_window_minutes
+        self._or_end_hm = _or_end_hm(or_window_minutes)
         self._vol_mult = volume_multiplier
         self._vol_lookback = volume_lookback
         self._target_r = target_r_multiple
@@ -95,12 +103,12 @@ class ORBStrategy:
         if state.day != day:
             state.reset(day)
 
-        if _is_in_or_window(open_ist):
+        if _is_in_or_window(open_ist, self._or_end_hm):
             self._update_or(state, bar)
             state.recent_volumes.append(bar.volume)
             return None
 
-        if not _is_post_or(open_ist):
+        if not _is_post_or(open_ist, self._or_end_hm):
             # Bar is before 09:15 IST — pre-market or auction; ignore.
             return None
 

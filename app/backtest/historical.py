@@ -212,3 +212,29 @@ def fetch_universe_for_dates(
             rows = fetch_day_raw(session, symbol, token, d)
             out[d][symbol] = raw_rows_to_bars(symbol, rows)
     return out
+
+
+def load_universe_from_cache(
+    ist_dates: list[date],
+    universe: list[str] | None = None,
+) -> dict[date, dict[str, list[Bar]]]:
+    """Pure-disk loader — no API, no auth. Use for parameter sweeps after the
+    initial fetch has populated data/historical/. Raises if anything's missing.
+    """
+    universe = universe or NIFTY_5_UNIVERSE
+    out: dict[date, dict[str, list[Bar]]] = {}
+    missing: list[tuple[str, date]] = []
+    for d in ist_dates:
+        out[d] = {}
+        for symbol in universe:
+            rows = load_cached_raw(symbol, d)
+            if rows is None:
+                missing.append((symbol, d))
+                continue
+            out[d][symbol] = raw_rows_to_bars(symbol, rows)
+    if missing:
+        raise RuntimeError(
+            f"cache miss for {len(missing)} (symbol, date) pairs; "
+            f"run `python -m app.scripts.backtest_orb` first. first miss: {missing[0]}"
+        )
+    return out

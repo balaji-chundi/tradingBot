@@ -38,6 +38,14 @@ class Settings(BaseSettings):
     risk_per_trade_pct: float = 1.0
     max_trades_per_day: int = 2
 
+    # ORB strategy parameters — tuned via parameter sweep on
+    # 2026-04-22 → 2026-05-20 backtest. See reports/sweep-orb-*.md.
+    # Live overrides via .env: ORB_OR_WINDOW_MINUTES / ORB_VOLUME_MULTIPLIER
+    # / ORB_TARGET_R_MULTIPLE.
+    orb_or_window_minutes: int = 30
+    orb_volume_multiplier: float = 2.5
+    orb_target_r_multiple: float = 1.5
+
     # Dashboard HTTP Basic Auth. Leave both blank to disable the gate (dev mode).
     # When both are set, every dashboard route requires these credentials.
     dashboard_user: str = ""
